@@ -1,4 +1,3 @@
-
 /**
  * Module dependencies.
  */
@@ -53,7 +52,7 @@ function adapter(uri, opts) {
 
   var prefix = opts.key || 'socket.io';
   var subEvent = opts.subEvent || 'messageBuffer';
-  var requestsTimeout = opts.requestsTimeout || 1000;
+  var requestsTimeout = opts.requestsTimeout || 5000;
   var withChannelMultiplexing = false !== opts.withChannelMultiplexing;
 
   // init clients if needed
@@ -79,7 +78,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  function Redis(nsp){
+  function Redis(nsp) {
     Adapter.call(this, nsp);
 
     this.uid = uid;
@@ -91,14 +90,16 @@ function adapter(uri, opts) {
     this.requestChannel = prefix + '-request#' + this.nsp.name + '#';
     this.responseChannel = prefix + '-response#' + this.nsp.name + '#';
     this.requests = {};
-    this.customHook = function(data, cb){ cb(null); }
+    this.customHook = function(data, cb) {
+      cb(null);
+    }
 
     if (String.prototype.startsWith) {
-      this.channelMatches = function (messageChannel, subscribedChannel) {
+      this.channelMatches = function(messageChannel, subscribedChannel) {
         return messageChannel.startsWith(subscribedChannel);
       }
     } else { // Fallback to other impl for older Node.js
-      this.channelMatches = function (messageChannel, subscribedChannel) {
+      this.channelMatches = function(messageChannel, subscribedChannel) {
         return messageChannel.substr(0, subscribedChannel.length) === subscribedChannel;
       }
     }
@@ -107,7 +108,7 @@ function adapter(uri, opts) {
 
     var self = this;
 
-    sub.subscribe([this.channel, this.requestChannel, this.responseChannel], function(err){
+    sub.subscribe([this.channel, this.requestChannel, this.responseChannel], function(err) {
       if (err) self.emit('error', err);
     });
 
@@ -132,7 +133,7 @@ function adapter(uri, opts) {
    * @api private
    */
 
-  Redis.prototype.onmessage = function(channel, msg){
+  Redis.prototype.onmessage = function(channel, msg) {
     channel = channel.toString();
 
     if (this.channelMatches(channel, this.requestChannel)) {
@@ -169,13 +170,13 @@ function adapter(uri, opts) {
    * @api private
    */
 
-  Redis.prototype.onrequest = function(channel, msg){
+  Redis.prototype.onrequest = function(channel, msg) {
     var self = this;
     var request;
 
     try {
       request = JSON.parse(msg);
-    } catch(err){
+    } catch (err) {
       self.emit('error', err);
       return;
     }
@@ -185,8 +186,8 @@ function adapter(uri, opts) {
     switch (request.type) {
 
       case requestTypes.clients:
-        Adapter.prototype.clients.call(self, request.rooms, function(err, clients){
-          if(err){
+        Adapter.prototype.clients.call(self, request.rooms, function(err, clients) {
+          if (err) {
             self.emit('error', err);
             return;
           }
@@ -201,13 +202,15 @@ function adapter(uri, opts) {
         break;
 
       case requestTypes.clientRooms:
-        Adapter.prototype.clientRooms.call(self, request.sid, function(err, rooms){
-          if(err){
+        Adapter.prototype.clientRooms.call(self, request.sid, function(err, rooms) {
+          if (err) {
             self.emit('error', err);
             return;
           }
 
-          if (!rooms) { return; }
+          if (!rooms) {
+            return;
+          }
 
           var response = JSON.stringify({
             requestid: request.requestid,
@@ -231,9 +234,11 @@ function adapter(uri, opts) {
       case requestTypes.remoteJoin:
 
         var socket = this.nsp.connected[request.sid];
-        if (!socket) { return; }
+        if (!socket) {
+          return;
+        }
 
-        socket.join(request.room, function(){
+        socket.join(request.room, function() {
           var response = JSON.stringify({
             requestid: request.requestid
           });
@@ -245,9 +250,11 @@ function adapter(uri, opts) {
       case requestTypes.remoteLeave:
 
         var socket = this.nsp.connected[request.sid];
-        if (!socket) { return; }
+        if (!socket) {
+          return;
+        }
 
-        socket.leave(request.room, function(){
+        socket.leave(request.room, function() {
           var response = JSON.stringify({
             requestid: request.requestid
           });
@@ -259,7 +266,9 @@ function adapter(uri, opts) {
       case requestTypes.remoteDisconnect:
 
         var socket = this.nsp.connected[request.sid];
-        if (!socket) { return; }
+        if (!socket) {
+          return;
+        }
 
         socket.disconnect(request.close);
 
@@ -294,13 +303,13 @@ function adapter(uri, opts) {
    * @api private
    */
 
-  Redis.prototype.onresponse = function(channel, msg){
+  Redis.prototype.onresponse = function(channel, msg) {
     var self = this;
     var response;
 
     try {
       response = JSON.parse(msg);
-    } catch(err){
+    } catch (err) {
       self.emit('error', err);
       return;
     }
@@ -320,9 +329,9 @@ function adapter(uri, opts) {
         request.msgCount++;
 
         // ignore if response does not contain 'clients' key
-        if(!response.clients || !Array.isArray(response.clients)) return;
+        if (!response.clients || !Array.isArray(response.clients)) return;
 
-        for(var i = 0; i < response.clients.length; i++){
+        for (var i = 0; i < response.clients.length; i++) {
           request.clients[response.clients[i]] = true;
         }
 
@@ -343,9 +352,9 @@ function adapter(uri, opts) {
         request.msgCount++;
 
         // ignore if response does not contain 'rooms' key
-        if(!response.rooms || !Array.isArray(response.rooms)) return;
+        if (!response.rooms || !Array.isArray(response.rooms)) return;
 
-        for(var i = 0; i < response.rooms.length; i++){
+        for (var i = 0; i < response.rooms.length; i++) {
           request.rooms[response.rooms[i]] = true;
         }
 
@@ -390,7 +399,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.broadcast = function(packet, opts, remote){
+  Redis.prototype.broadcast = function(packet, opts, remote) {
     packet.nsp = this.nsp.name;
     if (!(remote || (opts && opts.flags && opts.flags.local))) {
       var msg = msgpack.encode([uid, packet, opts]);
@@ -412,7 +421,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.add = function(id, room, fn){
+  Redis.prototype.add = function(id, room, fn) {
     debug('adding %s to %s ', id, room);
     var self = this;
     // subscribe only once per room
@@ -447,7 +456,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.del = function(id, room, fn){
+  Redis.prototype.del = function(id, room, fn) {
     debug('removing %s from %s', id, room);
 
     var self = this;
@@ -480,7 +489,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.delAll = function(id, fn){
+  Redis.prototype.delAll = function(id, fn) {
     debug('removing %s from all rooms', id);
 
     var self = this;
@@ -491,9 +500,9 @@ function adapter(uri, opts) {
       return;
     }
 
-    async.each(Object.keys(rooms), function(room, next){
+    async.each(Object.keys(rooms), function(room, next) {
       self.del(id, room, next);
-    }, function(err){
+    }, function(err) {
       if (err) {
         self.emit('error', err);
         if (fn) fn(err);
@@ -505,6 +514,40 @@ function adapter(uri, opts) {
   };
 
   /**
+   * Get the number of subscribers of a channel
+   *
+   * @param {String} channel
+   */
+
+  function getNumSub(channel) {
+    if (pub.constructor.name != 'Cluster') {
+      // RedisClient or Redis
+      return new Promise(function(resolve, reject) {
+        pub.send_command('pubsub', ['numsub', channel], function(err, numsub) {
+          if (err) return reject(err);
+          resolve(parseInt(numsub[1], 10));
+        });
+      })
+    } else {
+      // Cluster
+      var nodes = pub.nodes();
+      return Promise.all(
+        nodes.map(function(node) {
+          return node.send_command('pubsub', ['numsub', channel]);
+        })
+      ).then(function(values) {
+        var numsub = 0;
+        values.map(function(value) {
+          numsub += parseInt(value[1], 10);
+        })
+        return numsub;
+      }).catch(function(err) {
+        throw err;
+      });
+    }
+  }
+
+  /**
    * Gets a list of clients by sid.
    *
    * @param {Array} explicit set of rooms to check.
@@ -512,8 +555,8 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.clients = function(rooms, fn){
-    if ('function' == typeof rooms){
+  Redis.prototype.clients = function(rooms, fn) {
+    if ('function' == typeof rooms) {
       fn = rooms;
       rooms = null;
     }
@@ -523,19 +566,11 @@ function adapter(uri, opts) {
     var self = this;
     var requestid = uid2(6);
 
-    pub.send_command('pubsub', ['numsub', self.requestChannel], function(err, numsub){
-      if (err) {
-        self.emit('error', err);
-        if (fn) fn(err);
-        return;
-      }
-
-      numsub = parseInt(numsub[1], 10);
-
+    getNumSub(self.requestChannel).then(numsub => {
       var request = JSON.stringify({
-        requestid : requestid,
+        requestid: requestid,
         type: requestTypes.clients,
-        rooms : rooms
+        rooms: rooms
       });
 
       // if there is no response for x second, return result
@@ -555,6 +590,9 @@ function adapter(uri, opts) {
       };
 
       pub.publish(self.requestChannel, request);
+    }).catch(err => {
+      self.emit('error', err);
+      if (fn) fn(err);
     });
   };
 
@@ -566,7 +604,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.clientRooms = function(id, fn){
+  Redis.prototype.clientRooms = function(id, fn) {
 
     var self = this;
     var requestid = uid2(6);
@@ -579,9 +617,9 @@ function adapter(uri, opts) {
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.clientRooms,
-      sid : id
+      sid: id
     });
 
     // if there is no response for x second, return result
@@ -606,22 +644,15 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.allRooms = function(fn){
+  Redis.prototype.allRooms = function(fn) {
 
     var self = this;
     var requestid = uid2(6);
 
-    pub.send_command('pubsub', ['numsub', self.requestChannel], function(err, numsub){
-      if (err) {
-        self.emit('error', err);
-        if (fn) fn(err);
-        return;
-      }
-
-      numsub = parseInt(numsub[1], 10);
+    getNumSub(self.requestChannel).then(numsub => {
 
       var request = JSON.stringify({
-        requestid : requestid,
+        requestid: requestid,
         type: requestTypes.allRooms
       });
 
@@ -642,6 +673,9 @@ function adapter(uri, opts) {
       };
 
       pub.publish(self.requestChannel, request);
+    }).catch(err => {
+      self.emit('error', err);
+      if (fn) fn(err);
     });
   };
 
@@ -654,7 +688,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.remoteJoin = function(id, room, fn){
+  Redis.prototype.remoteJoin = function(id, room, fn) {
 
     var self = this;
     var requestid = uid2(6);
@@ -666,7 +700,7 @@ function adapter(uri, opts) {
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.remoteJoin,
       sid: id,
       room: room
@@ -696,7 +730,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.remoteLeave = function(id, room, fn){
+  Redis.prototype.remoteLeave = function(id, room, fn) {
 
     var self = this;
     var requestid = uid2(6);
@@ -708,7 +742,7 @@ function adapter(uri, opts) {
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.remoteLeave,
       sid: id,
       room: room
@@ -741,14 +775,14 @@ function adapter(uri, opts) {
     var requestid = uid2(6);
 
     var socket = this.nsp.connected[id];
-    if(socket) {
+    if (socket) {
       socket.disconnect(close);
       if (fn) process.nextTick(fn.bind(null, null));
       return;
     }
 
     var request = JSON.stringify({
-      requestid : requestid,
+      requestid: requestid,
       type: requestTypes.remoteDisconnect,
       sid: id,
       close: close
@@ -777,8 +811,8 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.customRequest = function(data, fn){
-    if (typeof data === 'function'){
+  Redis.prototype.customRequest = function(data, fn) {
+    if (typeof data === 'function') {
       fn = data;
       data = null;
     }
@@ -786,17 +820,10 @@ function adapter(uri, opts) {
     var self = this;
     var requestid = uid2(6);
 
-    pub.send_command('pubsub', ['numsub', self.requestChannel], function(err, numsub){
-      if (err) {
-        self.emit('error', err);
-        if (fn) fn(err);
-        return;
-      }
-
-      numsub = parseInt(numsub[1], 10);
+    getNumSub(self.requestChannel).then(numsub => {
 
       var request = JSON.stringify({
-        requestid : requestid,
+        requestid: requestid,
         type: requestTypes.customRequest,
         data: data
       });
@@ -818,6 +845,9 @@ function adapter(uri, opts) {
       };
 
       pub.publish(self.requestChannel, request);
+    }).catch(err => {
+      self.emit('error', err);
+      if (fn) fn(err);
     });
   };
 
