@@ -561,7 +561,7 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.clients = function(rooms, fn, retryCount) {
+  Redis.prototype.clients = function(rooms, fn, retryCount = 0) {
     if ('function' == typeof rooms) {
       fn = rooms;
       rooms = null;
@@ -585,7 +585,7 @@ function adapter(uri, opts) {
 
         // 1. atleast one node responded (inclusive of self)
         // 2. responses are 1 less than expected (happens in case of a scaledown)
-        if (request.msgCount > 0 && request.numsub == request.msgCount + 1 && retryCount < 2) {
+        if (request.msgCount > 0 && request.numsub == (request.msgCount + 1) && retryCount < 2) {
           // add a retry here
           self.emit('error', `Retrying client request ${retryCount} ${JSON.stringify(request)}`);
           console.warn("Retrying client request", retryCount, JSON.stringify(request));
