@@ -588,7 +588,7 @@ function adapter(uri, opts) {
         if (request.msgCount > 0 && request.numsub == (request.msgCount + 1) && retryCount < 2) {
           // add a retry here
           self.emit('error', `Retrying client request ${retryCount} ${JSON.stringify(request)}`);
-          Adapter.prototype.clients(rooms, fn, 1).bind(self);
+          Adapter.prototype.clients.call(self, rooms, fn, 1);
         } else if (fn) {
           self.emit('error', `NOT Retrying client request ${retryCount} ${JSON.stringify(request)}`);
           process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, rooms: ${rooms}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
