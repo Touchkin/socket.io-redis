@@ -561,7 +561,8 @@ function adapter(uri, opts) {
    * @api public
    */
 
-  Redis.prototype.clients = function(rooms, fn) {
+  Redis.prototype.clients = function(rooms, fn, retryCount = 0) {
+    const maxRetryCount = 2;
     if ('function' == typeof rooms) {
       fn = rooms;
       rooms = null;
@@ -582,7 +583,18 @@ function adapter(uri, opts) {
       // if there is no response for x second, return result
       var timeout = setTimeout(function() {
         var request = self.requests[requestid];
-        if (fn) process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, rooms: ${rooms}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
+
+        // 1. atleast one node responded (inclusive of self)
+        // 2. msgCount is 1 less than expected (happens in case of a scaledown)
+        if (request.msgCount > 0 && request.numsub == (request.msgCount + 1) && retryCount <= maxRetryCount) {
+          // add a retry here
+          self.emit('error', `Retrying client request ${retryCount} ${JSON.stringify(request)}`);
+          Adapter.prototype.clients.call(self, rooms, fn, retryCount + 1);
+        } else if (fn) {
+          self.emit('error', `NOT Retrying client request ${retryCount} ${JSON.stringify(request)}`);
+          process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, rooms: ${rooms}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
+        }
+
         delete self.requests[requestid];
       }, self.requestsTimeout);
 
