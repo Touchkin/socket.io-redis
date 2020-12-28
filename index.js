@@ -562,6 +562,7 @@ function adapter(uri, opts) {
    */
 
   Redis.prototype.clients = function(rooms, fn, retryCount = 0) {
+    const maxRetryCount = 2;
     if ('function' == typeof rooms) {
       fn = rooms;
       rooms = null;
@@ -584,11 +585,11 @@ function adapter(uri, opts) {
         var request = self.requests[requestid];
 
         // 1. atleast one node responded (inclusive of self)
-        // 2. responses are 1 less than expected (happens in case of a scaledown)
-        if (request.msgCount > 0 && request.numsub == (request.msgCount + 1) && retryCount < 2) {
+        // 2. msgCount is 1 less than expected (happens in case of a scaledown)
+        if (request.msgCount > 0 && request.numsub == (request.msgCount + 1) && retryCount <= maxRetryCount) {
           // add a retry here
           self.emit('error', `Retrying client request ${retryCount} ${JSON.stringify(request)}`);
-          Adapter.prototype.clients.call(self, rooms, fn, 1);
+          Adapter.prototype.clients.call(self, rooms, fn, retryCount + 1);
         } else if (fn) {
           self.emit('error', `NOT Retrying client request ${retryCount} ${JSON.stringify(request)}`);
           process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, rooms: ${rooms}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
