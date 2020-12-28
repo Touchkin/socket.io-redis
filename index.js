@@ -581,7 +581,7 @@ function adapter(uri, opts) {
       // if there is no response for x second, return result
       var timeout = setTimeout(function() {
         var request = self.requests[requestid];
-        if (fn) process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, requestId: ${requestid}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
+        if (fn) process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, rooms: ${rooms}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
         delete self.requests[requestid];
       }, self.requestsTimeout);
 
