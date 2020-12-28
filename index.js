@@ -329,7 +329,11 @@ function adapter(uri, opts) {
         request.msgCount++;
 
         // ignore if response does not contain 'clients' key
-        if (!response.clients || !Array.isArray(response.clients)) return;
+        if (!response.clients || !Array.isArray(response.clients)) {
+          if (self.requests[response.requestid])
+            self.requests[response.requestid].errMessage = `No clients in response, responsetype: ${typeof response.clients}`;
+          return;
+        }
 
         for (var i = 0; i < response.clients.length; i++) {
           request.clients[response.clients[i]] = true;
@@ -339,6 +343,8 @@ function adapter(uri, opts) {
           clearTimeout(request.timeout);
           if (request.callback) process.nextTick(request.callback.bind(null, null, Object.keys(request.clients)));
           delete self.requests[request.requestid];
+        } else if (self.requests[response.requestid]) {
+          self.requests[response.requestid].errMessage = `Message count mismatch, ${request.msgCount} - ${request.numsub}`;
         }
         break;
 
@@ -576,7 +582,7 @@ function adapter(uri, opts) {
       // if there is no response for x second, return result
       var timeout = setTimeout(function() {
         var request = self.requests[requestid];
-        if (fn) process.nextTick(fn.bind(null, new Error('timeout reached while waiting for clients response'), Object.keys(request.clients)));
+        if (fn) process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, rooms: ${rooms}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
         delete self.requests[requestid];
       }, self.requestsTimeout);
 
