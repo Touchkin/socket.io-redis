@@ -330,7 +330,8 @@ function adapter(uri, opts) {
 
         // ignore if response does not contain 'clients' key
         if (!response.clients || !Array.isArray(response.clients)) {
-          self.requests[request.requestid].errMessage = `No clients in channel ${channel} , responsetype: ${typeof response.clients}`;
+          if (self.requests[response.requestid])
+            self.requests[response.requestid].errMessage = `No clients in channel ${channel} , responsetype: ${typeof response.clients}`;
           return;
         }
 
@@ -342,8 +343,8 @@ function adapter(uri, opts) {
           clearTimeout(request.timeout);
           if (request.callback) process.nextTick(request.callback.bind(null, null, Object.keys(request.clients)));
           delete self.requests[request.requestid];
-        } else {
-          self.requests[request.requestid].errMessage = `Message count mismatch in channel ${channel}, ${request.msgCount} - ${request.numsub}`;
+        } else if (self.requests[response.requestid]) {
+          self.requests[response.requestid].errMessage = `Message count mismatch in channel ${channel}, ${request.msgCount} - ${request.numsub}`;
         }
         break;
 
