@@ -8,7 +8,7 @@ var msgpack = require('msgpack-lite');
 var Adapter = require('socket.io-adapter');
 var debug = require('debug')('socket.io-redis');
 var async = require('async');
-var consensusPercentageFromEnv = process.env.consensusPercentage;
+var consensusRatioFromEnv = process.env.consensusRatio;
 
 /**
  * Module exports.
@@ -55,7 +55,7 @@ function adapter(uri, opts) {
   var subEvent = opts.subEvent || 'messageBuffer';
   var requestsTimeout = opts.requestsTimeout || 1000;
   var withChannelMultiplexing = false !== opts.withChannelMultiplexing;
-  var consensusPercentage = isNaN(parseFloat(consensusPercentageFromEnv)) ? parseFloat(consensusPercentageFromEnv) : 1;
+  var consensusRatio = !isNaN(parseFloat(consensusRatioFromEnv)) ? parseFloat(consensusRatioFromEnv) : 1;
 
   // init clients if needed
   function createClient() {
@@ -87,7 +87,7 @@ function adapter(uri, opts) {
     this.prefix = prefix;
     this.requestsTimeout = requestsTimeout;
     this.withChannelMultiplexing = withChannelMultiplexing;
-    this.consensusPercentage = consensusPercentage;
+    this.consensusRatio = consensusRatio;
 
     this.channel = prefix + '#' + nsp.name + '#';
     this.requestChannel = prefix + '-request#' + this.nsp.name + '#';
@@ -589,7 +589,7 @@ function adapter(uri, opts) {
 
         // atleast one node responded (inclusive of self)
         if (request.msgCount > 0) {
-          if (request.numsub > 0 && (request.msgCount / request.numsub) >= self.consensusPercentage) {
+          if (request.numsub > 0 && (request.msgCount / request.numsub) >= self.consensusRatio) {
             // if enough nodes have responded to have consensus, send the response
             self.emit('error', `Accepting consensus for: ${JSON.stringify(request)}`);
             if (request.callback) process.nextTick(request.callback.bind(null, null, Object.keys(request.clients)));
