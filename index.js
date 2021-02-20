@@ -8,6 +8,7 @@ var msgpack = require('msgpack-lite');
 var Adapter = require('socket.io-adapter');
 var debug = require('debug')('socket.io-redis');
 var async = require('async');
+var consensusRatioFromEnv = process.env.consensusRatio;
 
 /**
  * Module exports.
@@ -52,8 +53,9 @@ function adapter(uri, opts) {
 
   var prefix = opts.key || 'socket.io';
   var subEvent = opts.subEvent || 'messageBuffer';
-  var requestsTimeout = opts.requestsTimeout || 5000;
+  var requestsTimeout = opts.requestsTimeout || 1000;
   var withChannelMultiplexing = false !== opts.withChannelMultiplexing;
+  var consensusRatio = !isNaN(parseFloat(consensusRatioFromEnv)) ? parseFloat(consensusRatioFromEnv) : 1;
 
   // init clients if needed
   function createClient() {
@@ -85,6 +87,7 @@ function adapter(uri, opts) {
     this.prefix = prefix;
     this.requestsTimeout = requestsTimeout;
     this.withChannelMultiplexing = withChannelMultiplexing;
+    this.consensusRatio = consensusRatio;
 
     this.channel = prefix + '#' + nsp.name + '#';
     this.requestChannel = prefix + '-request#' + this.nsp.name + '#';
@@ -584,12 +587,17 @@ function adapter(uri, opts) {
       var timeout = setTimeout(function() {
         var request = self.requests[requestid];
 
-        // 1. atleast one node responded (inclusive of self)
-        // 2. msgCount is 1 less than expected (happens in case of a scaledown)
-        if (request.msgCount > 0 && request.numsub == (request.msgCount + 1) && retryCount <= maxRetryCount) {
-          // add a retry here
-          self.emit('error', `Retrying client request ${retryCount} ${JSON.stringify(request)}`);
-          Adapter.prototype.clients.call(self, rooms, fn, retryCount + 1);
+        // atleast one node responded (inclusive of self)
+        if (request.msgCount > 0) {
+          if (request.numsub > 0 && (request.msgCount / request.numsub) >= self.consensusRatio) {
+            // if enough nodes have responded to have consensus, send the response
+            self.emit('error', `Accepting consensus for: ${JSON.stringify(request)}`);
+            if (request.callback) process.nextTick(request.callback.bind(null, null, Object.keys(request.clients)));
+          } else if (request.numsub == (request.msgCount + 1) && retryCount <= maxRetryCount) {
+            // retry here
+            self.emit('error', `Retrying client request ${retryCount} ${JSON.stringify(request)}`);
+            Adapter.prototype.clients.call(self, rooms, fn, retryCount + 1);
+          }
         } else if (fn) {
           self.emit('error', `NOT Retrying client request ${retryCount} ${JSON.stringify(request)}`);
           process.nextTick(fn.bind(null, new Error(`timeout reached while waiting for clients response, rooms: ${rooms}, err: ${self.requests[requestid].errMessage}, clients: ${Object.keys(request.clients)}`), Object.keys(request.clients)));
